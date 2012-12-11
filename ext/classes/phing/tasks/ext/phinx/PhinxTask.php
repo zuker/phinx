@@ -36,7 +36,7 @@ class PhinxTask extends Task
     /**
      * The target version to migrate to.
      *
-     * @var integer
+     * @var float
      */
     protected $_target;
 
