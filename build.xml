@@ -2,6 +2,12 @@
 <project name="phinx" basedir="." default="build">
     <!-- Load properties -->
     <property file="build.properties" />
+
+    <taskdef name="phinx" classname="lib.Phing.PhinxTask" />
+
+    <target name="test.phinx">
+      <phinx configuration="phinx.yml" target="0" />
+    </target>
     
     <target name="build" depends="prepare,clone,targz,phar,phargz,pharbz2,clean" />
 
