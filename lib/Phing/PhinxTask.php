@@ -1,7 +1,7 @@
 <?php
 
 require_once 'phing/Task.php';
-/*require_once 'phing/tasks/ext/phpcpd/PHPCPDFormatterElement.php';*/
+require_once 'phing/system/io/PhingFile.php';
 
 /**
  * Runs Phinx DB Migrations.
@@ -13,119 +13,195 @@ require_once 'phing/Task.php';
 class PhinxTask extends Task
 {
     /**
-     * The path to the Phinx configuration file.
+     * The path to Phinx application.
      *
      * @var string
      */
-    protected $_configuration;
+    protected $phinx = 'phinx';
+
+    /**
+     * Phinx configuration file.
+     *
+     * @var PhingFile
+     */
+    protected $configuration;
 
     /**
      * The Phinx environment.
      *
      * @var string
      */
-    protected $_environment;
+    protected $environment;
 
     /**
      * The Phinx command to run.
      *
-     * Defaults to 'migrate'.
-     *
      * @var string
      */
-    protected $_command = 'migrate';
+    protected $command;
 
     /**
      * The target version to migrate to.
      *
-     * @var float
+     * @var integer
      */
-    protected $_target = 0;
+    protected $migrateTarget;
 
-    /**
-     * Set the path to the Phinx configuration file.
-     *
-     * @param string $configuration The configuration file path
-     * @return void
-     */
-    public function setConfiguration($configuration)
+    public function __construct()
     {
-        $this->_configuration = $configuration;
+        $this->commandLine = new Commandline();
     }
 
     /**
-     * Get the path to the Phinx configuration file.
+     * Get path to Phinx executable.
      *
      * @return string
      */
-    public function getConfiguration()
+    public function getPhinx()
     {
-        return $this->_configuration;
+        return $this->phinx;
     }
 
     /**
-     * Sets the specified environment to run Phinx migrations.
+     * Set path to phinx application.
      *
-     * @param string $environment The specified environment
-     * @return void
+     * @param string $phinx
      */
-    public function setEnvironment($environment)
+    public function setPhinx($phinx)
     {
-        $this->_environment = $environment;
+        $this->phinx = $phinx;
     }
 
     /**
-     * Gets the specified environment to run Phinx migrations.
+     * Get the Phinx environment.
      *
      * @return string
      */
     public function getEnvironment()
     {
-        return $this->_environment;
+        return $this->environment;
     }
 
     /**
-     * Sets the specified Phinx command to execute.
+     * Set the Phinx environment.
      *
-     * Can either be 'migrate' or 'rollback'.
-     *
-     * @param string $command Command to execute.
-     * @return void
+     * @param string $environment
      */
-    public function setCommand($command)
+    public function setEnvironment($environment)
     {
-        $this->_command = $command;
+        $this->environment = $environment;
     }
 
     /**
-     * Gets the specified Phinx command to execute.
+     * Get the Phinx command.
      *
      * @return string
      */
     public function getCommand()
     {
-        return $this->_command;
+        return $this->command;
     }
 
     /**
-     * Sets the target version to migrate to.
+     * Set the phinx command.
      *
-     * @param float $target
+     * @param string $command
+     */
+    public function setCommand($command)
+    {
+        $this->command = $command;
+    }
+
+    /**
+     * Get target version.
+     *
+     * @return int
+     */
+    public function getMigrateTarget()
+    {
+        return $this->migrateTarget;
+    }
+
+    /**
+     * Set target version
+     *
+     * @param int $target
+     */
+    public function setMigrateTarget($target)
+    {
+        $this->migrateTarget = $target;
+    }
+
+    /**
+     * Set the path to the Phinx configuration file.
+     *
+     * @param PhingFile $configuration The configuration file
      * @return void
      */
-    public function setTarget($target)
+    public function setConfiguration(PhingFile $configuration)
     {
-        $this->_target = $target;
+        $this->configuration = $configuration;
     }
 
     /**
-     * Gets the target version to migrate to.
+     * Get Phinx configuration file.
      *
-     * @return float
+     * @return PhingFile
      */
-    public function getTarget()
+    public function getConfiguration()
     {
-        return $this->_target;
+        return $this->configuration;
+    }
+
+    /**
+     * Prepare Phinx command line
+     *
+     * @param string $phinxCommand Phinx command to run, if omited - command defined in task is used
+     */
+    private function prepareCommandLine($phinxCommand = null)
+    {
+        $this->commandLine->clearArgs();
+        $commandArg = $this->commandLine->createArgument();
+        if ($phinxCommand) {
+            $commandArg->setValue($phinxCommand);
+        } else {
+            $commandArg->setValue($this->command);
+        }
+    }
+
+    /**
+     * Set Phinx configuration argument if exists
+     */
+    private function setConfigurationArg()
+    {
+        if (isset($this->configuration)) {
+            $this->commandLine->createArgument(true)
+                ->setValue('--configuration');
+            $this->commandLine->createArgument(true)
+                ->setFile($this->configuration);
+        }
+    }
+
+    /**
+     * Set Phinx environment argument if exists
+     */
+    private function setEnvArg()
+    {
+        if (isset($this->environment)) {
+            $this->commandLine->createArgument(true)
+                ->setValue('--environment');
+            $this->commandLine->createArgument(true)
+                ->setValue($this->environment);
+        }
+    }
+
+    /**
+     * Set Phinx arguments
+     */
+    private function setArgs()
+    {
+        $this->setConfigurationArg();
+        $this->setEnvArg();
     }
 
     /**
@@ -136,14 +212,65 @@ class PhinxTask extends Task
      */
     public function main()
     {
-        /**
-         * Determine Phinx installation
-         */
+        $phinxFile = new SplFileInfo($this->phinx);
+
+        if (false === $phinxFile->isFile() || false == $phinxFile->isExecutable()) {
+            throw new BuildException(sprintf('Phinx binary not found, path is "%s"', $phinxFile));
+        }
+
+        $this->commandLine->setExecutable($this->phinx);
+
+        $this->commandLine->createArgument()
+            ->setValue($this->getPhinx());
+        $this->commandLine->createArgument()
+            ->setValue('--version');
+
+        exec($this->commandLine, $out, $return);
+
+        if ($return == 0 && preg_match('/version ([\d]+\.[\d]+\.[\d]+)/', $out[0], $matches)) {
+            if (version_compare($matches[1], '0.1.5', '<')) {
+                throw new BuildException("Requires Phinx version >= 0.1.5");
+            }
+        } else {
+            throw new BuildException("Phinx version query failed");
+        }
+
+        if (!isset($this->command)) {
+            throw new BuildException("Phinx command not set");
+        }
+
+        if (isset($this->configuration)) {
+            if (!$this->configuration->exists()) {
+                throw new BuildException(
+                    sprintf('Phinx configuration file does not exists: "%s"', $this->configuration)
+                );
+            }
+        }
+
+        $this->prepareCommandLine('test');
+        $this->setArgs();
+
+        $this->log("Testing configuration file");
+
+        passthru($this->commandLine, $return);
+
+        if ($return == 0) {
+            $this->prepareCommandLine();
+            $this->setArgs();
+            if (isset($this->migrateTarget)) {
+                $this->commandLine->createArgument(true)
+                    ->setValue($this->migrateTarget);
+            }
+            passthru($this->commandLine, $return);
+
+            if ($return > 0) {
+                throw new BuildException("Phinx execution failed");
+            }
+        } else {
+            throw new BuildException("Phinx configuration test failed");
+        }
+
 
         // TODO - implement
-        echo $this->getConfiguration() . PHP_EOL;
-        echo $this->getEnvironment() . PHP_EOL;
-        echo $this->getCommand() . PHP_EOL;
-        echo $this->getTarget() . PHP_EOL;
     }
 }
